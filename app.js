@@ -1,3 +1,13 @@
+const firebaseConfig = {
+  apiKey: "AIzaSyDponZeUwnM05SBX0lIm-GO_O2Z8uPIEJE",
+  authDomain: "countdown-time-quiz.firebaseapp.com",
+  projectId: "countdown-time-quiz",
+  storageBucket: "countdown-time-quiz.firebasestorage.app",
+  messagingSenderId: "768125638914",
+  appId: "1:768125638914:web:02b636a44f8274a3474a1b",
+  measurementId: "G-440ZXJDW08"
+};
+
 let isRegisterMode = false;
 
 // --- AUTH DOSEN ---
