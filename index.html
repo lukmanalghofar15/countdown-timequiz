@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReflectTime - Kuis Refleksi Berbasis Google Form</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-slate-900 font-sans">
+    <nav class="flex justify-between items-center py-4 px-8 bg-white shadow-sm">
+        <div class="text-xl font-bold flex items-center gap-2">
+            <span class="bg-slate-900 text-white p-1 rounded">⏱</span> ReflectTime
+        </div>
+        <div class="space-x-4">
+            <a href="auth.html" class="font-medium hover:text-slate-600">Masuk</a>
+            <a href="auth.html" class="bg-slate-900 text-white px-4 py-2 rounded-full font-medium hover:bg-slate-800">Daftar</a>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-8 py-16 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+        <div>
+            <span class="bg-slate-900 text-white text-xs px-3 py-1 rounded-full mb-4 inline-block">⏱ Quiz refleksi dengan timer</span>
+            <h1 class="text-5xl font-extrabold leading-tight mb-6">
+                Kuis refleksi <br> berbasis Google Form, <br> <span class="text-slate-400">selesai tepat waktu.</span>
+            </h1>
+            <p class="text-lg text-gray-600 mb-8">
+                Bagikan PIN atau QR ke mahasiswa. Mereka isi identitas, mengerjakan Google Form Anda dengan hitung mundur, dan hanya bisa submit satu kali.
+            </p>
+            <div class="flex gap-4">
+                <a href="auth.html" class="bg-slate-900 text-white px-6 py-3 rounded-full font-medium hover:bg-slate-800">Mulai buat kuis</a>
+                <a href="student.html" class="border border-slate-300 px-6 py-3 rounded-full font-medium hover:bg-gray-100">Saya mahasiswa</a>
+            </div>
+        </div>
+        <div class="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 text-center">
+            <h3 class="text-xl font-bold mb-4">Siap Memulai Refleksi?</h3>
+            <p class="text-gray-500 mb-6">Pilih peran Anda di atas untuk mengakses panel Dosen atau Portal Mahasiswa.</p>
+            <div class="p-4 bg-gray-50 rounded-xl text-sm text-gray-600">
+                💡 Didukung sistem anti-duplikat submission berbasis NIU & Timer otomatis.
+            </div>
+        </div>
+    </main>
+</body>
+</html>
