@@ -32,24 +32,41 @@ function toggleMode() {
 }
 
 function handleAuth() {
-    const email = document.getElementById('email').value;
+    // Gunakan toLowerCase() agar tidak sensitif huruf besar/kecil, dan trim() untuk hapus spasi tak sengaja
+    const email = document.getElementById('email').value.toLowerCase().trim();
     const pass = document.getElementById('password').value;
+    
     if(!email || !pass) { alert("Isi semua kolom!"); return; }
+
+    // --- VALIDASI DOMAIN EMAIL UGM ---
+    if (!email.endsWith("@ugm.ac.id") && !email.endsWith("@mail.ugm.ac.id")) {
+        alert("AKSES DITOLAK: Pendaftaran & Login khusus Dosen wajib menggunakan email UGM (@ugm.ac.id atau @mail.ugm.ac.id).");
+        return;
+    }
 
     const userRef = db.collection('dosen').doc(email);
 
     if(isRegisterMode) {
-        userRef.set({ password: pass }).then(() => {
-            alert("Pendaftaran berhasil! Silakan login.");
-            toggleMode();
+        // Mode Daftar
+        userRef.get().then((doc) => {
+            if (doc.exists) {
+                alert("Email ini sudah terdaftar! Silakan login.");
+            } else {
+                userRef.set({ password: pass }).then(() => {
+                    alert("Pendaftaran berhasil! Silakan login menggunakan email dan password Anda.");
+                    toggleMode(); // Otomatis pindah ke tampilan login
+                });
+            }
         });
     } else {
+        // Mode Login
         userRef.get().then((doc) => {
             if (doc.exists && doc.data().password === pass) {
+                // Simpan sesi login dosen
                 localStorage.setItem('loggedUser', email);
                 window.location.href = "dashboard.html";
             } else {
-                alert("Email atau password salah!");
+                alert("Login Gagal: Email tidak terdaftar atau password salah!");
             }
         });
     }
