@@ -154,34 +154,6 @@ function viewSubmissions(docId) {
 // ==========================================
 // 4. PORTAL MAHASISWA
 // ==========================================
-function loginWithGoogle() {
-    auth.signInWithPopup(googleProvider).then((result) => {
-        const user = result.user;
-        const email = user.email;
-
-        // Validasi: Pastikan email adalah email UGM
-        if (email.endsWith("@ugm.ac.id") || email.endsWith("@mail.ugm.ac.id")) {
-            // Jika valid, sembunyikan tombol login, tampilkan input PIN
-            document.getElementById('stepAuth').classList.add('hidden');
-            document.getElementById('stepPin').classList.remove('hidden');
-            
-            // Tampilkan email di layar agar mahasiswa yakin
-            document.getElementById('displayUserEmail').innerText = email;
-            
-            // Isi otomatis nama dari profil Google mereka ke form identitas nanti
-            document.getElementById('studentName').value = user.displayName;
-            
-        } else {
-            // Jika pakai akun gmail biasa, tolak dan logout otomatis
-            auth.signOut();
-            alert("AKSES DITOLAK: Harap gunakan email Universitas Gadjah Mada (@mail.ugm.ac.id atau @ugm.ac.id).");
-        }
-    }).catch((error) => {
-        console.error(error);
-        alert("Gagal login: " + error.message);
-    });
-}
-
 function verifyStudentPin() {
     const pin = document.getElementById('studentPin').value;
     
