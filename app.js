@@ -197,9 +197,15 @@ function startQuizSession() {
 }
 
 // ==========================================
-// 5. HALAMAN KUIS & TIMER (DIPERBARUI)
+// 5. HALAMAN KUIS & TIMER (FINAL)
 // ==========================================
-let timerInterval; // Variabel global untuk timer agar bisa dihentikan kapan saja
+let timerInterval;
+let isUnloading = false; // Penanda untuk membedakan refresh dan pindah tab
+
+// Event ini akan aktif tepat sebelum halaman di-refresh atau ditutup
+window.addEventListener('beforeunload', () => {
+    isUnloading = true; 
+});
 
 function initQuizPage() {
     const quiz = JSON.parse(localStorage.getItem('currentQuizSession'));
@@ -214,30 +220,27 @@ function initQuizPage() {
     document.getElementById('studentInfo').innerText = `${student.name} (${student.niu})`;
     document.getElementById('gformIframe').src = quiz.url;
 
-    // --- SOLUSI 1: WAKTU TETAP BERJALAN SAAT REFRESH ---
     let endTime = localStorage.getItem('quizEndTime');
     if (!endTime) {
-        // Jika kuis baru pertama kali dimulai, catat "waktu selesai"-nya ke memori browser
         const durationInMs = quiz.duration * 60 * 1000;
         endTime = new Date().getTime() + durationInMs;
         localStorage.setItem('quizEndTime', endTime);
     }
 
-    // Cek sisa waktu saat ini
     const now = new Date().getTime();
     const remainingSeconds = Math.floor((endTime - now) / 1000);
 
     if (remainingSeconds <= 0) {
-        endQuizSession(); // Jika saat direfresh waktu ternyata sudah habis
+        endQuizSession();
     } else {
-        startCountdown(endTime); // Jalankan timer berdasarkan waktu selesai absolut
+        startCountdown(endTime);
     }
 
-    // --- SOLUSI 2: DETEKSI PINDAH TAB (ANTI-CHEAT) ---
+    // --- FITUR ANTI-CHEAT YANG DIPERBAIKI ---
     document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === 'hidden') {
-            // Ketika user pindah tab, minimize browser, atau buka aplikasi lain
-            alert("⛔ PELANGGARAN: Anda terdeteksi keluar dari halaman kuis (membuka tab/aplikasi lain). Ujian otomatis dihentikan!");
+        // Jika tab disembunyikan DAN bukan karena proses refresh halaman
+        if (document.visibilityState === 'hidden' && !isUnloading) {
+            alert("⛔ PELANGGARAN: Anda terdeteksi keluar dari halaman kuis. Ujian otomatis dihentikan!");
             endQuizSession();
         }
     });
@@ -255,9 +258,15 @@ function startCountdown(endTime) {
             return;
         }
 
-        // Hitung menit dan detik yang tersisa
         let minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
         let seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+        // FITUR PERINGATAN 1 MENIT TERAKHIR
+        if (minutes === 0 && seconds <= 59) {
+            display.classList.add('text-red-600', 'animate-pulse');
+            // Tambahkan tulisan peringatan di sebelah waktu
+            document.getElementById('quizTitleHeader').innerHTML = `<span class="text-red-400 animate-pulse">⚠️ SEGERA SUBMIT SEBELUM WAKTU HABIS!</span>`;
+        }
 
         minutes = minutes < 10 ? "0" + minutes : minutes;
         seconds = seconds < 10 ? "0" + seconds : seconds;
@@ -266,13 +275,13 @@ function startCountdown(endTime) {
     }, 1000);
 }
 
-// Fungsi khusus untuk mengakhiri kuis & mengunci layar
 function endQuizSession() {
-    if(timerInterval) clearInterval(timerInterval); // Hentikan perhitungan
-    document.getElementById('formContainer').classList.add('hidden'); // Sembunyikan form
-    document.getElementById('timeoutMessage').classList.remove('hidden'); // Munculkan pesan selesai
+    if(timerInterval) clearInterval(timerInterval);
+    document.getElementById('formContainer').classList.add('hidden');
+    document.getElementById('timeoutMessage').classList.remove('hidden');
     
-    // Bersihkan sesi ujian dari browser agar tidak bisa diakses lagi
+    // Jangan hapus activeStudent jika ingin merekam log pelanggaran di masa depan, 
+    // tapi untuk sekarang kita bersihkan agar form benar-benar terkunci.
     localStorage.removeItem('currentQuizSession');
     localStorage.removeItem('activeStudent');
     localStorage.removeItem('quizEndTime'); 
