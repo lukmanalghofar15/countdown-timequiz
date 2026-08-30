@@ -16,8 +16,6 @@ if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 const db = firebase.firestore();
-const auth = firebase.auth();
-const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 // ==========================================
 // 2. AUTH DOSEN
@@ -37,31 +35,20 @@ function handleAuth() {
     
     if(!email || !pass) { alert("Isi semua kolom!"); return; }
 
-    if (!email.endsWith("@ugm.ac.id") && !email.endsWith("@mail.ugm.ac.id")) {
-        alert("AKSES DITOLAK: Pendaftaran & Login khusus Dosen wajib menggunakan email UGM.");
-        return;
-    }
-
     const userRef = db.collection('dosen').doc(email);
 
     if(isRegisterMode) {
-        // Proses Daftar
         userRef.get().then((doc) => {
             if (doc.exists) {
                 alert("Email ini sudah terdaftar! Silakan login.");
             } else {
                 userRef.set({ password: pass }).then(() => {
                     alert("Pendaftaran berhasil! Silakan login menggunakan email dan password Anda.");
-                    toggleMode(); // Kembali ke tampilan login
-                }).catch((error) => {
-                    alert("Gagal mendaftar. Firebase Error: " + error.message);
-                });
+                    toggleMode();
+                }).catch(err => alert("Error Database: " + err.message)); // Mencegah buffering
             }
-        }).catch((error) => {
-            alert("Gagal menghubungi server. Firebase Error: " + error.message);
-        });
+        }).catch(err => alert("Koneksi gagal: " + err.message));
     } else {
-        // Proses Login
         userRef.get().then((doc) => {
             if (doc.exists && doc.data().password === pass) {
                 localStorage.setItem('loggedUser', email);
@@ -69,9 +56,7 @@ function handleAuth() {
             } else {
                 alert("Login Gagal: Email tidak terdaftar atau password salah!");
             }
-        }).catch((error) => {
-            alert("Gagal menghubungi server. Firebase Error: " + error.message);
-        });
+        }).catch(err => alert("Koneksi gagal: " + err.message));
     }
 }
 
