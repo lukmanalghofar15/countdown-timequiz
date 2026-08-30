@@ -197,8 +197,10 @@ function startQuizSession() {
 }
 
 // ==========================================
-// 5. HALAMAN KUIS & TIMER
+// 5. HALAMAN KUIS & TIMER (DIPERBARUI)
 // ==========================================
+let timerInterval; // Variabel global untuk timer agar bisa dihentikan kapan saja
+
 function initQuizPage() {
     const quiz = JSON.parse(localStorage.getItem('currentQuizSession'));
     const student = JSON.parse(localStorage.getItem('activeStudent'));
@@ -212,28 +214,66 @@ function initQuizPage() {
     document.getElementById('studentInfo').innerText = `${student.name} (${student.niu})`;
     document.getElementById('gformIframe').src = quiz.url;
 
-    startCountdown(quiz.duration * 60);
+    // --- SOLUSI 1: WAKTU TETAP BERJALAN SAAT REFRESH ---
+    let endTime = localStorage.getItem('quizEndTime');
+    if (!endTime) {
+        // Jika kuis baru pertama kali dimulai, catat "waktu selesai"-nya ke memori browser
+        const durationInMs = quiz.duration * 60 * 1000;
+        endTime = new Date().getTime() + durationInMs;
+        localStorage.setItem('quizEndTime', endTime);
+    }
+
+    // Cek sisa waktu saat ini
+    const now = new Date().getTime();
+    const remainingSeconds = Math.floor((endTime - now) / 1000);
+
+    if (remainingSeconds <= 0) {
+        endQuizSession(); // Jika saat direfresh waktu ternyata sudah habis
+    } else {
+        startCountdown(endTime); // Jalankan timer berdasarkan waktu selesai absolut
+    }
+
+    // --- SOLUSI 2: DETEKSI PINDAH TAB (ANTI-CHEAT) ---
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === 'hidden') {
+            // Ketika user pindah tab, minimize browser, atau buka aplikasi lain
+            alert("⛔ PELANGGARAN: Anda terdeteksi keluar dari halaman kuis (membuka tab/aplikasi lain). Ujian otomatis dihentikan!");
+            endQuizSession();
+        }
+    });
 }
 
-function startCountdown(durationInSeconds) {
-    let timer = durationInSeconds;
+function startCountdown(endTime) {
     const display = document.getElementById('timerDisplay');
 
-    const interval = setInterval(() => {
-        let minutes = Math.floor(timer / 60);
-        let seconds = timer % 60;
+    timerInterval = setInterval(() => {
+        const now = new Date().getTime();
+        const distance = endTime - now;
+
+        if (distance <= 0) {
+            endQuizSession();
+            return;
+        }
+
+        // Hitung menit dan detik yang tersisa
+        let minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        let seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
         minutes = minutes < 10 ? "0" + minutes : minutes;
         seconds = seconds < 10 ? "0" + seconds : seconds;
 
         display.innerText = `${minutes}:${seconds}`;
-
-        if (--timer < 0) {
-            clearInterval(interval);
-            document.getElementById('formContainer').classList.add('hidden');
-            document.getElementById('timeoutMessage').classList.remove('hidden');
-            localStorage.removeItem('currentQuizSession');
-            localStorage.removeItem('activeStudent');
-        }
     }, 1000);
+}
+
+// Fungsi khusus untuk mengakhiri kuis & mengunci layar
+function endQuizSession() {
+    if(timerInterval) clearInterval(timerInterval); // Hentikan perhitungan
+    document.getElementById('formContainer').classList.add('hidden'); // Sembunyikan form
+    document.getElementById('timeoutMessage').classList.remove('hidden'); // Munculkan pesan selesai
+    
+    // Bersihkan sesi ujian dari browser agar tidak bisa diakses lagi
+    localStorage.removeItem('currentQuizSession');
+    localStorage.removeItem('activeStudent');
+    localStorage.removeItem('quizEndTime'); 
 }
