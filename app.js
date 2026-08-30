@@ -1,5 +1,8 @@
+// ==========================================
+// 1. INISIALISASI FIREBASE
+// ==========================================
 const firebaseConfig = {
-  apiKey: "AIzaSyDponZeUwnM05SBX0lIm-GO_O2Z8uPIEJE",
+  apiKey: "AIzaSyDponZeUwnM05SBXO1Im-GO_O2Z8uPIEJE",
   authDomain: "countdown-time-quiz.firebaseapp.com",
   projectId: "countdown-time-quiz",
   storageBucket: "countdown-time-quiz.firebasestorage.app",
@@ -8,9 +11,17 @@ const firebaseConfig = {
   measurementId: "G-440ZXJDW08"
 };
 
+// Inisialisasi Firebase & Firestore menggunakan objek window (dari CDN HTML)
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore();
+
+// ==========================================
+// 2. AUTH DOSEN
+// ==========================================
 let isRegisterMode = false;
 
-// --- AUTH DOSEN ---
 function toggleMode() {
     isRegisterMode = !isRegisterMode;
     document.getElementById('formTitle').innerText = isRegisterMode ? "Daftar Akun Dosen" : "Login Dosen";
@@ -23,18 +34,22 @@ function handleAuth() {
     const pass = document.getElementById('password').value;
     if(!email || !pass) { alert("Isi semua kolom!"); return; }
 
+    const userRef = db.collection('dosen').doc(email);
+
     if(isRegisterMode) {
-        localStorage.setItem('user_' + email, pass);
-        alert("Pendaftaran berhasil! Silakan login.");
-        toggleMode();
+        userRef.set({ password: pass }).then(() => {
+            alert("Pendaftaran berhasil! Silakan login.");
+            toggleMode();
+        });
     } else {
-        const savedPass = localStorage.getItem('user_' + email);
-        if(savedPass === pass) {
-            localStorage.setItem('loggedUser', email);
-            window.location.href = "dashboard.html";
-        } else {
-            alert("Email atau password salah!");
-        }
+        userRef.get().then((doc) => {
+            if (doc.exists && doc.data().password === pass) {
+                localStorage.setItem('loggedUser', email);
+                window.location.href = "dashboard.html";
+            } else {
+                alert("Email atau password salah!");
+            }
+        });
     }
 }
 
@@ -43,7 +58,9 @@ function logout() {
     window.location.href = "auth.html";
 }
 
-// --- DASHBOARD DOSEN ---
+// ==========================================
+// 3. DASHBOARD DOSEN (Menyimpan & Membaca ke Cloud Firestore)
+// ==========================================
 function createQuiz() {
     const title = document.getElementById('quizTitle').value;
     const url = document.getElementById('quizUrl').value;
@@ -52,86 +69,103 @@ function createQuiz() {
     if(!title || !url || !duration) { alert("Semua field wajib diisi!"); return; }
 
     const pin = Math.floor(100000 + Math.random() * 900000).toString();
-    const quizzes = JSON.parse(localStorage.getItem('quizzes') || '[]');
 
-    const newQuiz = {
-        id: Date.now(),
-        title,
-        url,
+    db.collection("quizzes").add({
+        title: title,
+        url: url,
         duration: parseInt(duration),
-        pin,
+        pin: pin,
         active: true,
-        submissions: [] // Menyimpan daftar NIU yang sudah submit
-    };
-
-    quizzes.push(newQuiz);
-    localStorage.setItem('quizzes', JSON.stringify(quizzes));
-    alert(`Kuis berhasil dibuat! PIN Akses: ${pin}`);
-    loadDashboard();
+        dosen: localStorage.getItem('loggedUser'),
+        submissions: []
+    }).then(() => {
+        alert(`Kuis berhasil dibuat! PIN Akses: ${pin}`);
+        document.getElementById('quizTitle').value = '';
+        document.getElementById('quizUrl').value = '';
+        document.getElementById('quizDuration').value = '';
+        loadDashboard();
+    });
 }
 
 function loadDashboard() {
     const container = document.getElementById('quizListContainer');
     if(!container) return;
-    const quizzes = JSON.parse(localStorage.getItem('quizzes') || '[]');
 
-    if(quizzes.length === 0) {
-        container.innerHTML = `<p class="text-gray-500 text-sm">Belum ada kuis yang dibuat.</p>`;
-        return;
-    }
+    const dosenEmail = localStorage.getItem('loggedUser');
+    if(!dosenEmail) { window.location.href = "auth.html"; return; }
 
-    container.innerHTML = quizzes.map(q => `
-        <div class="border border-gray-200 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-                <h4 class="font-bold text-lg">${q.title}</h4>
-                <p class="text-sm text-gray-500">Durasi: ${q.duration} Menit | PIN: <span class="font-mono font-bold text-slate-900">${q.pin}</span></p>
-                <p class="text-xs text-gray-400 mt-1">Total Mahasiswa Submit: ${q.submissions.length} orang</p>
-            </div>
-            <div class="flex items-center gap-3">
-                <span class="px-3 py-1 rounded-full text-xs font-medium ${q.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
-                    ${q.active ? 'Aktif' : 'Non-Aktif'}
-                </span>
-                <button onclick="toggleQuizStatus(${q.id})" class="text-xs border px-3 py-1 rounded hover:bg-gray-50">Ubah Status</button>
-                <button onclick="viewSubmissions(${q.id})" class="text-xs bg-slate-100 px-3 py-1 rounded hover:bg-slate-200">Lihat Data Submit</button>
-            </div>
-        </div>
-    `).join('');
+    container.innerHTML = '<p class="text-gray-500">Memuat data dari server...</p>';
+
+    db.collection("quizzes").where("dosen", "==", dosenEmail)
+    .onSnapshot((querySnapshot) => {
+        if(querySnapshot.empty) {
+            container.innerHTML = `<p class="text-gray-500 text-sm">Belum ada kuis yang dibuat.</p>`;
+            return;
+        }
+
+        let html = '';
+        querySnapshot.forEach((doc) => {
+            const q = doc.data();
+            html += `
+            <div class="border border-gray-200 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 bg-white">
+                <div>
+                    <h4 class="font-bold text-lg">${q.title}</h4>
+                    <p class="text-sm text-gray-500">Durasi: ${q.duration} Menit | PIN: <span class="font-mono font-bold text-slate-900">${q.pin}</span></p>
+                    <p class="text-xs text-gray-400 mt-1">Total Mahasiswa Submit: ${q.submissions.length} orang</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="px-3 py-1 rounded-full text-xs font-medium ${q.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                        ${q.active ? 'Aktif' : 'Non-Aktif'}
+                    </span>
+                    <button onclick="toggleQuizStatus('${doc.id}', ${q.active})" class="text-xs border px-3 py-1 rounded hover:bg-gray-50">Ubah Status</button>
+                    <button onclick="viewSubmissions('${doc.id}')" class="text-xs bg-slate-100 px-3 py-1 rounded hover:bg-slate-200">Data Submit</button>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    });
 }
 
-function toggleQuizStatus(id) {
-    let quizzes = JSON.parse(localStorage.getItem('quizzes') || '[]');
-    quizzes = quizzes.map(q => { if(q.id === id) q.active = !q.active; return q; });
-    localStorage.setItem('quizzes', JSON.stringify(quizzes));
-    loadDashboard();
+function toggleQuizStatus(docId, currentStatus) {
+    db.collection("quizzes").doc(docId).update({
+        active: !currentStatus
+    });
 }
 
-function viewSubmissions(id) {
-    const quizzes = JSON.parse(localStorage.getItem('quizzes') || '[]');
-    const q = quizzes.find(item => item.id === id);
-    if(q.submissions.length === 0) {
-        alert("Belum ada mahasiswa yang mengumpulkan kuis ini.");
-    } else {
-        let list = q.submissions.map((s, idx) => `${idx+1}. ${s.name} (${s.niu})`).join('\n');
-        alert(`Daftar Mahasiswa yang Mengumpulkan:\n\n` + list);
-    }
+function viewSubmissions(docId) {
+    db.collection("quizzes").doc(docId).get().then((doc) => {
+        const subs = doc.data().submissions;
+        if(subs.length === 0) {
+            alert("Belum ada mahasiswa yang mengumpulkan kuis ini.");
+        } else {
+            let list = subs.map((s, idx) => `${idx+1}. ${s.name} (${s.niu})`).join('\n');
+            alert(`Daftar Mahasiswa yang Mengumpulkan:\n\n` + list);
+        }
+    });
 }
 
-// --- PORTAL MAHASISWA ---
+// ==========================================
+// 4. PORTAL MAHASISWA
+// ==========================================
 function verifyStudentPin() {
     const pin = document.getElementById('studentPin').value;
-    const quizzes = JSON.parse(localStorage.getItem('quizzes') || '[]');
-    const quiz = quizzes.find(q => q.pin === pin && q.active);
+    
+    db.collection("quizzes").where("pin", "==", pin).where("active", "==", true).get()
+    .then((querySnapshot) => {
+        if (querySnapshot.empty) {
+            alert("PIN salah atau kuis sedang ditutup!");
+            return;
+        }
 
-    if(!quiz) {
-        alert("PIN salah atau kuis sedang tidak aktif!");
-        return;
-    }
+        const doc = querySnapshot.docs[0];
+        const quizData = doc.data();
+        quizData.id = doc.id; 
 
-    // Simpan sementara sesi kuis mahasiswa
-    localStorage.setItem('currentQuizSession', JSON.stringify(quiz));
-    document.getElementById('stepPin').classList.add('hidden');
-    document.getElementById('stepIdentity').classList.remove('hidden');
-    document.getElementById('activeQuizName').innerText = quiz.title;
+        localStorage.setItem('currentQuizSession', JSON.stringify(quizData));
+        document.getElementById('stepPin').classList.add('hidden');
+        document.getElementById('stepIdentity').classList.remove('hidden');
+        document.getElementById('activeQuizName').innerText = quizData.title;
+    });
 }
 
 function startQuizSession() {
@@ -140,27 +174,31 @@ function startQuizSession() {
 
     if(!name || !niu) { alert("Nama dan NIU wajib diisi!"); return; }
 
-    const quiz = JSON.parse(localStorage.getItem('currentQuizSession'));
-    let quizzes = JSON.parse(localStorage.getItem('quizzes') || '[]');
-    const currentQuiz = quizzes.find(q => q.id === quiz.id);
+    const quizSession = JSON.parse(localStorage.getItem('currentQuizSession'));
+    const quizRef = db.collection("quizzes").doc(quizSession.id);
 
-    // Cek apakah NIU sudah pernah submit
-    const alreadySubmitted = currentQuiz.submissions.some(s => s.niu === niu);
-    if(alreadySubmitted) {
-        alert("Maaf, NIU ini sudah pernah digunakan untuk submit kuis ini (Satu NIU hanya 1 kali submit).");
-        return;
-    }
+    quizRef.get().then((doc) => {
+        const data = doc.data();
+        const alreadySubmitted = data.submissions.some(s => s.niu === niu);
 
-    // Catat submit mahasiswa ke database kuis
-    currentQuiz.submissions.push({ name, niu, time: new Date().toLocaleTimeString() });
-    localStorage.setItem('quizzes', JSON.stringify(quizzes));
+        if(alreadySubmitted) {
+            alert("Maaf, NIU ini sudah pernah digunakan untuk submit kuis ini (Satu NIU hanya 1 kali submit).");
+            return;
+        }
 
-    // Simpan data aktif mahasiswa untuk halaman kuis
-    localStorage.setItem('activeStudent', JSON.stringify({ name, niu }));
-    window.location.href = "quiz.html";
+        const newSubmission = { name: name, niu: niu, time: new Date().toISOString() };
+        quizRef.update({
+            submissions: firebase.firestore.FieldValue.arrayUnion(newSubmission)
+        }).then(() => {
+            localStorage.setItem('activeStudent', JSON.stringify({ name, niu }));
+            window.location.href = "quiz.html";
+        });
+    });
 }
 
-// --- HALAMAN KUIS & TIMER ---
+// ==========================================
+// 5. HALAMAN KUIS & TIMER
+// ==========================================
 function initQuizPage() {
     const quiz = JSON.parse(localStorage.getItem('currentQuizSession'));
     const student = JSON.parse(localStorage.getItem('activeStudent'));
@@ -174,7 +212,6 @@ function initQuizPage() {
     document.getElementById('studentInfo').innerText = `${student.name} (${student.niu})`;
     document.getElementById('gformIframe').src = quiz.url;
 
-    // Jalankan Timer Mundur (dalam detik)
     startCountdown(quiz.duration * 60);
 }
 
@@ -196,6 +233,7 @@ function startCountdown(durationInSeconds) {
             document.getElementById('formContainer').classList.add('hidden');
             document.getElementById('timeoutMessage').classList.remove('hidden');
             localStorage.removeItem('currentQuizSession');
+            localStorage.removeItem('activeStudent');
         }
     }, 1000);
 }
