@@ -286,3 +286,41 @@ function endQuizSession() {
     localStorage.removeItem('activeStudent');
     localStorage.removeItem('quizEndTime'); 
 }
+
+// ==========================================
+// DETEKSI SUBMIT GOOGLE FORM LEBIH AWAL
+// ==========================================
+let iframeLoadCount = 0;
+
+function detectFormSubmit() {
+    iframeLoadCount++;
+    
+    // Load pertama (1) = Form kuis muncul
+    // Load kedua (2) = Form pindah ke halaman "Terima Kasih" (Selesai submit)
+    if (iframeLoadCount > 1) {
+        handleEarlySubmit();
+    }
+}
+
+function handleEarlySubmit() {
+    // 1. Hentikan timer agar tidak terus berjalan di background
+    if(timerInterval) clearInterval(timerInterval);
+    
+    // 2. Sembunyikan form dan cegah deteksi pindah tab lagi
+    isUnloading = true; // Mematikan fitur anti-cheat agar mahasiswa aman menutup web
+    document.getElementById('formContainer').classList.add('hidden');
+    
+    // 3. Ubah pesan selesai menjadi ucapan terima kasih (berbeda dengan pesan waktu habis)
+    const timeoutMsg = document.getElementById('timeoutMessage');
+    timeoutMsg.classList.remove('hidden');
+    timeoutMsg.innerHTML = `
+        <h2 class="text-3xl font-bold text-green-600 mb-2">Terima Kasih!</h2>
+        <p class="text-gray-600 mb-6">Jawaban kuis Anda telah berhasil disubmit sebelum waktu habis.</p>
+        <a href="index.html" class="bg-slate-900 text-white px-6 py-3 rounded-full font-medium">Kembali ke Beranda</a>
+    `;
+    
+    // 4. Hapus sesi agar mereka tidak bisa mengulang kuis
+    localStorage.removeItem('currentQuizSession');
+    localStorage.removeItem('activeStudent');
+    localStorage.removeItem('quizEndTime');
+}
