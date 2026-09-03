@@ -24,7 +24,7 @@ let isRegisterMode = false;
 
 function toggleMode() {
     isRegisterMode = !isRegisterMode;
-    document.getElementById('formTitle').innerText = isRegisterMode ? "Daftar Akun Dosen" : "Login Dosen";
+    document.getElementById('formTitle').innerText = isRegisterMode ? "Daftar Akun" : "Login";
     document.getElementById('submitBtn').innerText = isRegisterMode ? "Daftar" : "Masuk";
     document.getElementById('toggleText').innerText = isRegisterMode ? "Sudah punya akun?" : "Belum punya akun?";
 }
