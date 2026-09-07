@@ -113,12 +113,15 @@ function loadDashboard() {
         let html = '';
         querySnapshot.forEach((doc) => {
             const q = doc.data();
+            // Penambahan fallback jika q.submissions belum ada
+            const totalSubmissions = q.submissions ? q.submissions.length : 0; 
+            
             html += `
             <div class="border border-gray-200 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 bg-white">
                 <div>
                     <h4 class="font-bold text-lg">${q.title}</h4>
                     <p class="text-sm text-gray-500">Durasi: ${q.duration} Menit | PIN: <span class="font-mono font-bold text-slate-900">${q.pin}</span></p>
-                    <p class="text-xs text-gray-400 mt-1">Total Mahasiswa Submit: ${q.submissions.length} orang</p>
+                    <p class="text-xs text-gray-400 mt-1">Total Mahasiswa Submit: ${totalSubmissions} orang</p>
                 </div>
                 <div class="flex items-center gap-3">
                     <span class="px-3 py-1 rounded-full text-xs font-medium ${q.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
@@ -130,6 +133,14 @@ function loadDashboard() {
             </div>`;
         });
         container.innerHTML = html;
+        
+    }, (error) => {
+        // FITUR BARU: Menangkap dan menampilkan error ke layar agar tidak buffering terus
+        console.error("Firebase Error:", error);
+        container.innerHTML = `<div class="bg-red-50 p-4 rounded-lg border border-red-200">
+            <h4 class="text-red-700 font-bold mb-1">Gagal Memuat Data</h4>
+            <p class="text-red-600 text-sm">${error.message}</p>
+        </div>`;
     });
 }
 
