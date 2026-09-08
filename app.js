@@ -513,3 +513,71 @@ function deleteGrade(docId) {
         db.collection("grades").doc(docId).delete();
     }
 }
+// ==========================================
+// PENCARIAN NILAI MAHASISWA
+// ==========================================
+function searchGrade() {
+    const title = document.getElementById('searchTitle').value.trim().toLowerCase();
+    const name = document.getElementById('searchName').value.trim().toLowerCase();
+    const niu = document.getElementById('searchNiu').value.trim().toLowerCase();
+
+    if(!title || !name || !niu) {
+        alert("Mohon lengkapi ketiga data pencarian!"); 
+        return;
+    }
+
+    const btn = document.querySelector('button[onclick="searchGrade()"]');
+    btn.innerText = "Mencari...";
+
+    // Menggunakan 1 filter utama (NIM) agar aman dari error index Firebase
+    db.collection("grades")
+      .where("studentNiu", "==", niu)
+      .get()
+      .then((querySnapshot) => {
+          btn.innerText = "Cari Nilai Saya";
+          
+          if (querySnapshot.empty) {
+              alert("Data tidak ditemukan. Pastikan NIM Anda sudah benar dan sudah diinput oleh pengajar.");
+              document.getElementById('resultContainer').classList.add('hidden');
+              return;
+          }
+
+          let foundData = null;
+          
+          // Cocokkan Judul dan Nama secara presisi dari data NIM yang ditemukan
+          querySnapshot.forEach((doc) => {
+              const data = doc.data();
+              if (data.practicumTitle === title && data.studentName === name) {
+                  foundData = data;
+              }
+          });
+
+          if (!foundData) {
+              alert("Data ditemukan untuk NIM tersebut, tetapi Judul Praktikum atau Nama Lengkap tidak cocok. Pastikan ejaan dan spasi sama persis dengan yang diinput pengajar.");
+              document.getElementById('resultContainer').classList.add('hidden');
+              return;
+          }
+
+          // Tampilkan Hasil Nilai ke Layar
+          document.getElementById('resultContainer').classList.remove('hidden');
+          document.getElementById('resTitle').innerText = foundData.practicumTitle.toUpperCase();
+          document.getElementById('resStudent').innerText = `${foundData.studentName.toUpperCase()} (${foundData.studentNiu.toUpperCase()})`;
+          document.getElementById('resFinalScore').innerText = foundData.finalScore;
+
+          // Tampilkan Rincian Komponen Nilai
+          const compList = document.getElementById('resComponents');
+          compList.innerHTML = '';
+          foundData.components.forEach(c => {
+              compList.innerHTML += `
+              <li class="flex justify-between bg-gray-50 p-2 rounded border">
+                  <span>${c.name} <span class="text-xs text-gray-500">(Bobot: ${c.weight}%)</span></span>
+                  <span class="font-bold">${c.score}</span>
+              </li>`;
+          });
+      })
+      .catch((error) => {
+          btn.innerText = "Cari Nilai Saya";
+          console.error("Firebase Search Error:", error);
+          alert("Gagal menghubungi server: " + error.message);
+      });
+}
