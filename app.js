@@ -335,15 +335,16 @@ function handleEarlySubmit() {
 }
 
 // ==========================================
-// 6. FITUR REKAP NILAI (DOSEN & MAHASISWA)
+// 6. FITUR REKAP NILAI (DIPERBARUI DENGAN EDIT)
 // ==========================================
+let editingGradeId = null; // Penanda jika sedang mengedit data
 
 function addComponentRow() {
     const container = document.getElementById('componentsContainer');
     const row = document.createElement('div');
     row.className = "flex gap-2 component-row mt-3";
     row.innerHTML = `
-        <input type="text" class="comp-name w-1/2 px-3 py-2 border rounded bg-gray-50" placeholder="Nama Komponen">
+        <input type="text" class="comp-name w-1/2 px-3 py-2 border rounded bg-gray-50" placeholder="Nama (cth: Laporan)">
         <input type="number" class="comp-score w-1/4 px-3 py-2 border rounded bg-gray-50" placeholder="Nilai">
         <input type="number" class="comp-weight w-1/4 px-3 py-2 border rounded bg-gray-50" placeholder="Bobot (%)">
         <button onclick="this.parentElement.remove()" class="text-red-500 font-bold px-2">X</button>
@@ -382,21 +383,35 @@ function saveGrade() {
         return;
     }
 
-    const dosenEmail = localStorage.getItem('loggedUser'); // Menggunakan sesi dosen yang sudah ada
+    const dosenEmail = localStorage.getItem('loggedUser');
 
-    db.collection("grades").add({
-        dosen: dosenEmail,
-        practicumTitle: practicumTitle.toLowerCase(),
-        studentName: studentName.toLowerCase(),
-        studentNiu: studentNiu.toLowerCase(),
-        components: components,
-        finalScore: parseFloat(finalScore.toFixed(2)),
-        timestamp: new Date().toISOString()
-    }).then(() => {
-        alert("Data nilai berhasil disimpan!");
-        document.getElementById('studentNameGrade').value = '';
-        document.getElementById('studentNiuGrade').value = '';
-    }).catch(err => alert("Gagal menyimpan: " + err.message));
+    if (editingGradeId) {
+        // --- MODE UPDATE / EDIT DATA ---
+        db.collection("grades").doc(editingGradeId).update({
+            practicumTitle: practicumTitle.toLowerCase(),
+            studentName: studentName.toLowerCase(),
+            studentNiu: studentNiu.toLowerCase(),
+            components: components,
+            finalScore: parseFloat(finalScore.toFixed(2))
+        }).then(() => {
+            alert("Data nilai berhasil diperbarui!");
+            resetGradeForm();
+        }).catch(err => alert("Gagal memperbarui: " + err.message));
+    } else {
+        // --- MODE TAMBAH DATA BARU ---
+        db.collection("grades").add({
+            dosen: dosenEmail,
+            practicumTitle: practicumTitle.toLowerCase(),
+            studentName: studentName.toLowerCase(),
+            studentNiu: studentNiu.toLowerCase(),
+            components: components,
+            finalScore: parseFloat(finalScore.toFixed(2)),
+            timestamp: new Date().toISOString()
+        }).then(() => {
+            alert("Data nilai berhasil disimpan!");
+            resetGradeForm();
+        }).catch(err => alert("Gagal menyimpan: " + err.message));
+    }
 }
 
 function loadGrades() {
@@ -406,8 +421,8 @@ function loadGrades() {
     const dosenEmail = localStorage.getItem('loggedUser');
     if(!dosenEmail) return;
 
+    // Kueri aman tanpa orderBy server untuk mencegah error indeks
     db.collection("grades").where("dosen", "==", dosenEmail)
-    .orderBy("timestamp", "desc")
     .onSnapshot((snapshot) => {
         tbody.innerHTML = '';
         if(snapshot.empty) {
@@ -415,72 +430,86 @@ function loadGrades() {
             return;
         }
 
+        let grades = [];
         snapshot.forEach((doc) => {
-            const data = doc.data();
+            grades.push({ id: doc.id, ...doc.data() });
+        });
+
+        // Urutkan data secara lokal di browser (terbaru di atas)
+        grades.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        grades.forEach((data) => {
             tbody.innerHTML += `
             <tr class="border-b hover:bg-gray-50">
                 <td class="p-3 capitalize">${data.practicumTitle}</td>
                 <td class="p-3 capitalize">${data.studentName}<br><span class="text-xs text-gray-500 uppercase">${data.studentNiu}</span></td>
                 <td class="p-3 text-center font-bold text-blue-600">${data.finalScore}</td>
-                <td class="p-3 text-center">
-                    <button onclick="deleteGrade('${doc.id}')" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">Hapus</button>
+                <td class="p-3 text-center space-x-2">
+                    <button onclick="editGrade('${data.id}')" class="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded hover:bg-yellow-200 font-medium">Edit</button>
+                    <button onclick="deleteGrade('${data.id}')" class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded hover:bg-red-200 font-medium">Hapus</button>
                 </td>
             </tr>`;
         });
+    }, (error) => {
+        console.error(error);
+        tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-red-500">Gagal memuat: ${error.message}</td></tr>`;
     });
+}
+
+function editGrade(id) {
+    db.collection("grades").doc(id).get().then((doc) => {
+        if (doc.exists) {
+            const data = doc.data();
+            document.getElementById('practicumTitle').value = data.practicumTitle;
+            document.getElementById('studentNameGrade').value = data.studentName;
+            document.getElementById('studentNiuGrade').value = data.studentNiu;
+
+            // Masukkan kembali komponen penilaian ke form
+            const container = document.getElementById('componentsContainer');
+            container.innerHTML = '';
+            data.components.forEach(c => {
+                const row = document.createElement('div');
+                row.className = "flex gap-2 component-row mt-3";
+                row.innerHTML = `
+                    <input type="text" class="comp-name w-1/2 px-3 py-2 border rounded bg-gray-50" value="${c.name}">
+                    <input type="number" class="comp-score w-1/4 px-3 py-2 border rounded bg-gray-50" value="${c.score}">
+                    <input type="number" class="comp-weight w-1/4 px-3 py-2 border rounded bg-gray-50" value="${c.weight}">
+                    <button onclick="this.parentElement.remove()" class="text-red-500 font-bold px-2">X</button>
+                `;
+                container.appendChild(row);
+            });
+
+            editingGradeId = id;
+            
+            // Ubah tombol simpan menjadi tombol update berwarna kuning
+            const saveBtn = document.querySelector('button[onclick="saveGrade()"]');
+            saveBtn.innerText = "Perbarui Nilai";
+            saveBtn.className = "bg-yellow-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-yellow-700";
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' }); // Otomatis scroll ke atas melihat form
+        }
+    });
+}
+
+function resetGradeForm() {
+    document.getElementById('practicumTitle').value = '';
+    document.getElementById('studentNameGrade').value = '';
+    document.getElementById('studentNiuGrade').value = '';
+    document.getElementById('componentsContainer').innerHTML = `
+        <div class="flex gap-2 component-row">
+            <input type="text" class="comp-name w-1/2 px-3 py-2 border rounded bg-gray-50" placeholder="Nama (cth: Laporan)">
+            <input type="number" class="comp-score w-1/4 px-3 py-2 border rounded bg-gray-50" placeholder="Nilai (0-100)">
+            <input type="number" class="comp-weight w-1/4 px-3 py-2 border rounded bg-gray-50" placeholder="Bobot (%)">
+        </div>
+    `;
+    editingGradeId = null;
+    const saveBtn = document.querySelector('button[onclick="saveGrade()"]');
+    saveBtn.innerText = "Simpan Nilai";
+    saveBtn.className = "bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700";
 }
 
 function deleteGrade(docId) {
     if(confirm("Yakin ingin menghapus data nilai ini?")) {
         db.collection("grades").doc(docId).delete();
     }
-}
-
-function searchGrade() {
-    const title = document.getElementById('searchTitle').value.trim().toLowerCase();
-    const name = document.getElementById('searchName').value.trim().toLowerCase();
-    const niu = document.getElementById('searchNiu').value.trim().toLowerCase();
-
-    if(!title || !name || !niu) {
-        alert("Mohon lengkapi ketiga data pencarian!"); return;
-    }
-
-    const btn = document.querySelector('button[onclick="searchGrade()"]');
-    btn.innerText = "Mencari...";
-
-    db.collection("grades")
-      .where("practicumTitle", "==", title)
-      .where("studentName", "==", name)
-      .where("studentNiu", "==", niu)
-      .get()
-      .then((querySnapshot) => {
-          btn.innerText = "Cari Nilai Saya";
-          
-          if (querySnapshot.empty) {
-              alert("Data tidak ditemukan. Pastikan ejaan Judul, Nama, dan NIM sama persis dengan yang diinput pengajar.");
-              document.getElementById('resultContainer').classList.add('hidden');
-              return;
-          }
-
-          const data = querySnapshot.docs[0].data();
-          
-          document.getElementById('resultContainer').classList.remove('hidden');
-          document.getElementById('resTitle').innerText = data.practicumTitle.toUpperCase();
-          document.getElementById('resStudent').innerText = `${data.studentName.toUpperCase()} (${data.studentNiu.toUpperCase()})`;
-          document.getElementById('resFinalScore').innerText = data.finalScore;
-
-          const compList = document.getElementById('resComponents');
-          compList.innerHTML = '';
-          data.components.forEach(c => {
-              compList.innerHTML += `
-              <li class="flex justify-between bg-gray-50 p-2 rounded border">
-                  <span>${c.name} <span class="text-xs text-gray-500">(Bobot: ${c.weight}%)</span></span>
-                  <span class="font-bold">${c.score}</span>
-              </li>`;
-          });
-      })
-      .catch((error) => {
-          btn.innerText = "Cari Nilai Saya";
-          alert("Gagal menghubungi server: " + error.message);
-      });
 }
