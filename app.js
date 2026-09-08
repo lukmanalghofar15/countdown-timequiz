@@ -333,3 +333,154 @@ function handleEarlySubmit() {
     localStorage.removeItem('activeStudent');
     localStorage.removeItem('quizEndTime');
 }
+
+// ==========================================
+// 6. FITUR REKAP NILAI (DOSEN & MAHASISWA)
+// ==========================================
+
+function addComponentRow() {
+    const container = document.getElementById('componentsContainer');
+    const row = document.createElement('div');
+    row.className = "flex gap-2 component-row mt-3";
+    row.innerHTML = `
+        <input type="text" class="comp-name w-1/2 px-3 py-2 border rounded bg-gray-50" placeholder="Nama Komponen">
+        <input type="number" class="comp-score w-1/4 px-3 py-2 border rounded bg-gray-50" placeholder="Nilai">
+        <input type="number" class="comp-weight w-1/4 px-3 py-2 border rounded bg-gray-50" placeholder="Bobot (%)">
+        <button onclick="this.parentElement.remove()" class="text-red-500 font-bold px-2">X</button>
+    `;
+    container.appendChild(row);
+}
+
+function saveGrade() {
+    const practicumTitle = document.getElementById('practicumTitle').value.trim();
+    const studentName = document.getElementById('studentNameGrade').value.trim();
+    const studentNiu = document.getElementById('studentNiuGrade').value.trim();
+
+    if(!practicumTitle || !studentName || !studentNiu) {
+        alert("Judul, Nama, dan NIM wajib diisi!"); return;
+    }
+
+    const rows = document.querySelectorAll('.component-row');
+    let components = [];
+    let totalWeight = 0;
+    let finalScore = 0;
+
+    for (let row of rows) {
+        const name = row.querySelector('.comp-name').value;
+        const score = parseFloat(row.querySelector('.comp-score').value) || 0;
+        const weight = parseFloat(row.querySelector('.comp-weight').value) || 0;
+
+        if (name) {
+            components.push({ name, score, weight });
+            totalWeight += weight;
+            finalScore += (score * (weight / 100)); 
+        }
+    }
+
+    if (totalWeight !== 100) {
+        alert(`Peringatan: Total bobot rasio saat ini adalah ${totalWeight}%. Harus tepat 100%.`);
+        return;
+    }
+
+    const dosenEmail = localStorage.getItem('loggedUser'); // Menggunakan sesi dosen yang sudah ada
+
+    db.collection("grades").add({
+        dosen: dosenEmail,
+        practicumTitle: practicumTitle.toLowerCase(),
+        studentName: studentName.toLowerCase(),
+        studentNiu: studentNiu.toLowerCase(),
+        components: components,
+        finalScore: parseFloat(finalScore.toFixed(2)),
+        timestamp: new Date().toISOString()
+    }).then(() => {
+        alert("Data nilai berhasil disimpan!");
+        document.getElementById('studentNameGrade').value = '';
+        document.getElementById('studentNiuGrade').value = '';
+    }).catch(err => alert("Gagal menyimpan: " + err.message));
+}
+
+function loadGrades() {
+    const tbody = document.getElementById('gradesTableBody');
+    if(!tbody) return;
+
+    const dosenEmail = localStorage.getItem('loggedUser');
+    if(!dosenEmail) return;
+
+    db.collection("grades").where("dosen", "==", dosenEmail)
+    .orderBy("timestamp", "desc")
+    .onSnapshot((snapshot) => {
+        tbody.innerHTML = '';
+        if(snapshot.empty) {
+            tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-gray-500">Belum ada data nilai.</td></tr>`;
+            return;
+        }
+
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            tbody.innerHTML += `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="p-3 capitalize">${data.practicumTitle}</td>
+                <td class="p-3 capitalize">${data.studentName}<br><span class="text-xs text-gray-500 uppercase">${data.studentNiu}</span></td>
+                <td class="p-3 text-center font-bold text-blue-600">${data.finalScore}</td>
+                <td class="p-3 text-center">
+                    <button onclick="deleteGrade('${doc.id}')" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">Hapus</button>
+                </td>
+            </tr>`;
+        });
+    });
+}
+
+function deleteGrade(docId) {
+    if(confirm("Yakin ingin menghapus data nilai ini?")) {
+        db.collection("grades").doc(docId).delete();
+    }
+}
+
+function searchGrade() {
+    const title = document.getElementById('searchTitle').value.trim().toLowerCase();
+    const name = document.getElementById('searchName').value.trim().toLowerCase();
+    const niu = document.getElementById('searchNiu').value.trim().toLowerCase();
+
+    if(!title || !name || !niu) {
+        alert("Mohon lengkapi ketiga data pencarian!"); return;
+    }
+
+    const btn = document.querySelector('button[onclick="searchGrade()"]');
+    btn.innerText = "Mencari...";
+
+    db.collection("grades")
+      .where("practicumTitle", "==", title)
+      .where("studentName", "==", name)
+      .where("studentNiu", "==", niu)
+      .get()
+      .then((querySnapshot) => {
+          btn.innerText = "Cari Nilai Saya";
+          
+          if (querySnapshot.empty) {
+              alert("Data tidak ditemukan. Pastikan ejaan Judul, Nama, dan NIM sama persis dengan yang diinput pengajar.");
+              document.getElementById('resultContainer').classList.add('hidden');
+              return;
+          }
+
+          const data = querySnapshot.docs[0].data();
+          
+          document.getElementById('resultContainer').classList.remove('hidden');
+          document.getElementById('resTitle').innerText = data.practicumTitle.toUpperCase();
+          document.getElementById('resStudent').innerText = `${data.studentName.toUpperCase()} (${data.studentNiu.toUpperCase()})`;
+          document.getElementById('resFinalScore').innerText = data.finalScore;
+
+          const compList = document.getElementById('resComponents');
+          compList.innerHTML = '';
+          data.components.forEach(c => {
+              compList.innerHTML += `
+              <li class="flex justify-between bg-gray-50 p-2 rounded border">
+                  <span>${c.name} <span class="text-xs text-gray-500">(Bobot: ${c.weight}%)</span></span>
+                  <span class="font-bold">${c.score}</span>
+              </li>`;
+          });
+      })
+      .catch((error) => {
+          btn.innerText = "Cari Nilai Saya";
+          alert("Gagal menghubungi server: " + error.message);
+      });
+}
