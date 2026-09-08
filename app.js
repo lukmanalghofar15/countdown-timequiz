@@ -72,6 +72,9 @@ function createQuiz() {
     const title = document.getElementById('quizTitle').value;
     const url = document.getElementById('quizUrl').value;
     const duration = document.getElementById('quizDuration').value;
+    
+    // 1. TAMBAHAN BARU: Menangkap pilihan jadwal kelas
+    const classType = document.getElementById('quizClassType').value; 
 
     if(!title || !url || !duration) { alert("Semua field wajib diisi!"); return; }
 
@@ -83,6 +86,7 @@ function createQuiz() {
         duration: parseInt(duration),
         pin: pin,
         active: true,
+        classType: classType, // 2. TAMBAHAN BARU: Menyimpan pilihan kelas ke database
         dosen: localStorage.getItem('loggedUser'),
         submissions: []
     }).then(() => {
@@ -90,6 +94,10 @@ function createQuiz() {
         document.getElementById('quizTitle').value = '';
         document.getElementById('quizUrl').value = '';
         document.getElementById('quizDuration').value = '';
+        
+        // 3. TAMBAHAN BARU: Mengembalikan dropdown ke "Tanpa Jadwal" setelah kuis terbuat
+        document.getElementById('quizClassType').value = 'none'; 
+        
         loadDashboard();
     });
 }
