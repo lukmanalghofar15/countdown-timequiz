@@ -179,7 +179,7 @@ function verifyStudentPin() {
     db.collection("quizzes").where("pin", "==", pin).where("active", "==", true).get()
     .then((querySnapshot) => {
         if (querySnapshot.empty) {
-            alert("PIN salah atau kuis sedang ditutup!");
+            alert("PIN salah atau kuis sedang ditutup oleh dosen!");
             return;
         }
 
@@ -187,38 +187,54 @@ function verifyStudentPin() {
         const quizData = doc.data();
         quizData.id = doc.id; 
 
+        // ==========================================
+        // VALIDASI JADWAL BERULANG (REGULER & IUP)
+        // ==========================================
+        if (quizData.classType && quizData.classType !== 'none') {
+            const now = new Date();
+            const currentDay = now.getDay(); // 0 = Minggu, 1 = Senin, dst
+            const currentHours = now.getHours();
+            const currentMinutes = now.getMinutes();
+            // Konversi ke total menit untuk kemudahan logika (Contoh: 19:00 = 19 * 60 = 1140)
+            const currentTotalMinutes = (currentHours * 60) + currentMinutes;
+
+            let isAllowed = false;
+            let scheduleText = "";
+
+            if (quizData.classType === 'reguler') {
+                scheduleText = "- Senin: 19:00 - 20:30 WIB\n- Kamis: 19:00 - 20:30 WIB\n- Sabtu: 08:00 - 09:30 WIB";
+                
+                // Cek Senin (1): 19:00 (1140) - 20:30 (1230)
+                if (currentDay === 1 && currentTotalMinutes >= 1140 && currentTotalMinutes <= 1230) isAllowed = true;
+                // Cek Kamis (4): 19:00 (1140) - 20:30 (1230)
+                if (currentDay === 4 && currentTotalMinutes >= 1140 && currentTotalMinutes <= 1230) isAllowed = true;
+                // Cek Sabtu (6): 08:00 (480) - 09:30 (570)
+                if (currentDay === 6 && currentTotalMinutes >= 480 && currentTotalMinutes <= 570) isAllowed = true;
+                
+            } else if (quizData.classType === 'iup') {
+                scheduleText = "- Senin: 13:00 - 14:00 WIB\n- Jumat: 19:00 - 20:00 WIB\n- Sabtu: 10:00 - 11:00 WIB";
+                
+                // Cek Senin (1): 13:00 (780) - 14:00 (840)
+                if (currentDay === 1 && currentTotalMinutes >= 780 && currentTotalMinutes <= 840) isAllowed = true;
+                // Cek Jumat (5): 19:00 (1140) - 20:00 (1200)
+                if (currentDay === 5 && currentTotalMinutes >= 1140 && currentTotalMinutes <= 1200) isAllowed = true;
+                // Cek Sabtu (6): 10:00 (600) - 11:00 (660)
+                if (currentDay === 6 && currentTotalMinutes >= 600 && currentTotalMinutes <= 660) isAllowed = true;
+            }
+
+            // Jika waktu saat ini tidak ada yang cocok dengan jadwal di atas, tolak akses!
+            if (!isAllowed) {
+                alert(`⛔ AKSES DITOLAK: Saat ini di luar jadwal kuis.\n\nKuis untuk kelas Anda hanya dibuka pada:\n${scheduleText}`);
+                return;
+            }
+        }
+        // ==========================================
+
+        // Jika waktu cocok (atau kuis "Tanpa Jadwal"), lanjutkan ke input Nama & NIM
         localStorage.setItem('currentQuizSession', JSON.stringify(quizData));
         document.getElementById('stepPin').classList.add('hidden');
         document.getElementById('stepIdentity').classList.remove('hidden');
         document.getElementById('activeQuizName').innerText = quizData.title;
-    });
-}
-
-function startQuizSession() {
-    const name = document.getElementById('studentName').value;
-    const niu = document.getElementById('studentNiu').value;
-
-    if(!name || !niu) { alert("Nama dan NIU wajib diisi!"); return; }
-
-    const quizSession = JSON.parse(localStorage.getItem('currentQuizSession'));
-    const quizRef = db.collection("quizzes").doc(quizSession.id);
-
-    quizRef.get().then((doc) => {
-        const data = doc.data();
-        const alreadySubmitted = data.submissions.some(s => s.niu === niu);
-
-        if(alreadySubmitted) {
-            alert("Maaf, NIU ini sudah pernah digunakan untuk submit kuis ini (Satu NIU hanya 1 kali submit).");
-            return;
-        }
-
-        const newSubmission = { name: name, niu: niu, time: new Date().toISOString() };
-        quizRef.update({
-            submissions: firebase.firestore.FieldValue.arrayUnion(newSubmission)
-        }).then(() => {
-            localStorage.setItem('activeStudent', JSON.stringify({ name, niu }));
-            window.location.href = "quiz.html";
-        });
     });
 }
 
