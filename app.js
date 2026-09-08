@@ -186,6 +186,13 @@ function verifyStudentPin() {
         const doc = querySnapshot.docs[0];
         const quizData = doc.data();
         quizData.id = doc.id; 
+      
+        const now = new Date();
+        const hari = now.getDay(); // 0=Minggu, 1=Senin, 2=Selasa, dst.
+        const jam = now.getHours();
+        const menit = now.getMinutes();
+        alert(`DEBUG INFO:\n- Hari ini angka: ${hari} (Selasa = 2)\n- Jam saat ini: ${jam}:${menit}\n- Tipe Kelas di DB: ${quizData.classType}`);
+        // ==========================================
 
         // ==========================================
         // VALIDASI JADWAL BERULANG (REGULER & IUP)
