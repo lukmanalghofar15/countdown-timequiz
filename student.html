@@ -9,7 +9,7 @@
 <body class="bg-gray-50 flex items-center justify-center h-screen">
     <div class="bg-white p-8 rounded-2xl shadow-md w-full max-w-md border border-gray-100">
         <h2 class="text-2xl font-bold mb-2 text-center">Masuk Quiz</h2>
-        <p class="text-gray-500 text-sm text-center mb-6">Masukkan PIN yang diberikan oleh Asisten/Pengajar Anda.</p>
+        <p class="text-gray-500 text-sm text-center mb-6">Masukkan PIN yang diberikan oleh Asisten/Pengajar kamu.</p>
         
         <!-- Step 1: Input PIN -->
         <div id="stepPin" class="space-y-4">
@@ -23,7 +23,7 @@
         <!-- Step 2: Input Identitas (Hidden awalnya) -->
         <div id="stepIdentity" class="space-y-4 hidden mt-6">
             <div class="p-3 bg-green-50 text-green-700 rounded-lg text-sm mb-4">
-                ✓ Quis ditemukan: <span id="activeQuizName" class="font-bold"></span>
+                ✓ Quiz ditemukan: <span id="activeQuizName" class="font-bold"></span>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap</label>
@@ -33,7 +33,7 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">NIM</label>
                 <input type="text" id="studentNiu" class="w-full px-4 py-2 border rounded-lg" placeholder="21/XXXXX/PA/XXXXX">
             </div>
-            <button onclick="startQuizSession()" class="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700">Mulai Kerjakan Quis</button>
+            <button onclick="startQuizSession()" class="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700">Mulai Kerjakan Quiz</button>
         </div>
 
         <div class="text-center mt-6">
@@ -45,9 +45,5 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="app.js"></script>
-</body>
-</html>
-</body>
-</html>
 </body>
 </html>
