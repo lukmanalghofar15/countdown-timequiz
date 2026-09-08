@@ -238,6 +238,68 @@ function verifyStudentPin() {
     });
 }
 
+function startQuizSession() {
+    const name = document.getElementById('studentName').value;
+    const niu = document.getElementById('studentNiu').value;
+
+    if(!name || !niu) { 
+        alert("Nama dan NIM wajib diisi!"); 
+        return; 
+    }
+
+    const btn = document.querySelector('button[onclick="startQuizSession()"]');
+    if (btn) btn.innerText = "Memproses...";
+
+    const quizSession = JSON.parse(localStorage.getItem('currentQuizSession'));
+    
+    if (!quizSession || !quizSession.id) {
+        alert("Sesi kuis tidak valid. Silakan muat ulang halaman dan masukkan PIN kembali.");
+        if (btn) btn.innerText = "Mulai Kerjakan Quiz";
+        return;
+    }
+
+    const quizRef = db.collection("quizzes").doc(quizSession.id);
+
+    quizRef.get().then((doc) => {
+        if (!doc.exists) {
+            alert("Kuis tidak ditemukan di server.");
+            if (btn) btn.innerText = "Mulai Kerjakan Quiz";
+            return;
+        }
+
+        const data = doc.data();
+        
+        // Fallback pengaman jika kuis lama belum memiliki array submissions
+        const submissionsArray = data.submissions || []; 
+        
+        const alreadySubmitted = submissionsArray.some(s => s.niu === niu);
+
+        if(alreadySubmitted) {
+            alert("Maaf, NIM ini sudah pernah digunakan untuk submit kuis ini (Satu NIM hanya 1 kali pengerjaan).");
+            if (btn) btn.innerText = "Mulai Kerjakan Quiz";
+            return;
+        }
+
+        const newSubmission = { name: name, niu: niu, time: new Date().toISOString() };
+        
+        quizRef.update({
+            submissions: firebase.firestore.FieldValue.arrayUnion(newSubmission)
+        }).then(() => {
+            localStorage.setItem('activeStudent', JSON.stringify({ name, niu }));
+            window.location.href = "quiz.html";
+        }).catch((error) => {
+            console.error("Firebase Update Error:", error);
+            alert("Gagal menyimpan sesi: " + error.message);
+            if (btn) btn.innerText = "Mulai Kerjakan Quiz";
+        });
+
+    }).catch((error) => {
+        console.error("Firebase Get Error:", error);
+        alert("Gagal menghubungi server database: " + error.message);
+        if (btn) btn.innerText = "Mulai Kerjakan Quiz";
+    });
+}
+
 // ==========================================
 // 5. HALAMAN KUIS & TIMER (FINAL)
 // ==========================================
