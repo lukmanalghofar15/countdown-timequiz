@@ -30,6 +30,15 @@
                     <input type="number" id="quizDuration" class="w-full px-4 py-2 border rounded-lg" placeholder="15">
                 </div>
             </div>
+            <div class="mt-4 mb-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Pilih Jadwal Kelas (Sesuai Aturan)</label>
+                <select id="quizClassType" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-900 bg-white">
+                    <option value="none">Tanpa Jadwal (Selalu Buka jika status Aktif)</option>
+                    <option value="reguler">Kelas Reguler (S1 Fisika & Geofisika)</option>
+                    <option value="iup">Kelas IUP (International Physics Student)</option>
+                </select>
+            </div>
+            <p class="text-xs text-gray-400 mb-4">*Selama status kuis "Aktif", kuis hanya bisa diakses pada hari & jam sesuai jadwal kelas yang dipilih.</p>
             <button onclick="createQuiz()" class="bg-slate-900 text-white px-6 py-2 rounded-lg font-medium hover:bg-slate-800">Generate PIN & Kuis</button>
         </div>
 
