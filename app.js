@@ -45,7 +45,7 @@ function handleAuth() {
                 userRef.set({ password: pass }).then(() => {
                     alert("Pendaftaran berhasil! Silakan login menggunakan email dan password Anda.");
                     toggleMode();
-                }).catch(err => alert("Error Database: " + err.message)); // Mencegah buffering
+                }).catch(err => alert("Error Database: " + err.message)); 
             }
         }).catch(err => alert("Koneksi gagal: " + err.message));
     } else {
@@ -66,12 +66,13 @@ function logout() {
 }
 
 // ==========================================
-// 3. DASHBOARD DOSEN (Menyimpan & Membaca ke Cloud Firestore)
+// 3. DASHBOARD DOSEN (Menyimpan & Membaca)
 // ==========================================
 function createQuiz() {
     const title = document.getElementById('quizTitle').value;
     const url = document.getElementById('quizUrl').value;
     const duration = document.getElementById('quizDuration').value;
+    const classType = document.getElementById('quizClassType') ? document.getElementById('quizClassType').value : 'none'; 
 
     if(!title || !url || !duration) { alert("Semua field wajib diisi!"); return; }
 
@@ -83,6 +84,7 @@ function createQuiz() {
         duration: parseInt(duration),
         pin: pin,
         active: true,
+        classType: classType,
         dosen: localStorage.getItem('loggedUser'),
         submissions: []
     }).then(() => {
@@ -90,6 +92,7 @@ function createQuiz() {
         document.getElementById('quizTitle').value = '';
         document.getElementById('quizUrl').value = '';
         document.getElementById('quizDuration').value = '';
+        if(document.getElementById('quizClassType')) document.getElementById('quizClassType').value = 'none';
         loadDashboard();
     });
 }
@@ -113,14 +116,13 @@ function loadDashboard() {
         let html = '';
         querySnapshot.forEach((doc) => {
             const q = doc.data();
-            // Penambahan fallback jika q.submissions belum ada
             const totalSubmissions = q.submissions ? q.submissions.length : 0; 
             
             html += `
             <div class="border border-gray-200 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 bg-white">
                 <div>
                     <h4 class="font-bold text-lg">${q.title}</h4>
-                    <p class="text-sm text-gray-500">Durasi: ${q.duration} Menit | PIN: <span class="font-mono font-bold text-slate-900">${q.pin}</span></p>
+                    <p class="text-sm text-gray-500">Durasi: ${q.duration} Menit | PIN: <span class="font-mono font-bold text-slate-900">${q.pin}</span> | Kelas: <span class="uppercase font-medium">${q.classType || 'Tanpa Jadwal'}</span></p>
                     <p class="text-xs text-gray-400 mt-1">Total Mahasiswa Submit: ${totalSubmissions} orang</p>
                 </div>
                 <div class="flex items-center gap-3">
@@ -135,7 +137,6 @@ function loadDashboard() {
         container.innerHTML = html;
         
     }, (error) => {
-        // FITUR BARU: Menangkap dan menampilkan error ke layar agar tidak buffering terus
         console.error("Firebase Error:", error);
         container.innerHTML = `<div class="bg-red-50 p-4 rounded-lg border border-red-200">
             <h4 class="text-red-700 font-bold mb-1">Gagal Memuat Data</h4>
@@ -145,14 +146,12 @@ function loadDashboard() {
 }
 
 function toggleQuizStatus(docId, currentStatus) {
-    db.collection("quizzes").doc(docId).update({
-        active: !currentStatus
-    });
+    db.collection("quizzes").doc(docId).update({ active: !currentStatus });
 }
 
 function viewSubmissions(docId) {
     db.collection("quizzes").doc(docId).get().then((doc) => {
-        const subs = doc.data().submissions;
+        const subs = doc.data().submissions || [];
         if(subs.length === 0) {
             alert("Belum ada mahasiswa yang mengumpulkan kuis ini.");
         } else {
@@ -171,7 +170,7 @@ function verifyStudentPin() {
     db.collection("quizzes").where("pin", "==", pin).where("active", "==", true).get()
     .then((querySnapshot) => {
         if (querySnapshot.empty) {
-            alert("PIN salah atau kuis sedang ditutup!");
+            alert("PIN salah atau kuis sedang ditutup oleh dosen!");
             return;
         }
 
@@ -179,38 +178,95 @@ function verifyStudentPin() {
         const quizData = doc.data();
         quizData.id = doc.id; 
 
+        // VALIDASI JADWAL
+        if (quizData.classType && quizData.classType !== 'none') {
+            const now = new Date();
+            const currentDay = now.getDay(); 
+            const currentTotalMinutes = (now.getHours() * 60) + now.getMinutes();
+
+            let isAllowed = false;
+            let scheduleText = "";
+
+            if (quizData.classType === 'reguler') {
+                scheduleText = "- Senin & Kamis: 19:00 - 20:30 WIB\n- Sabtu: 08:00 - 09:30 WIB";
+                if (currentDay === 1 && currentTotalMinutes >= 1140 && currentTotalMinutes <= 1230) isAllowed = true;
+                if (currentDay === 4 && currentTotalMinutes >= 1140 && currentTotalMinutes <= 1230) isAllowed = true;
+                if (currentDay === 6 && currentTotalMinutes >= 480 && currentTotalMinutes <= 570) isAllowed = true;
+                
+            } else if (quizData.classType === 'iup') {
+                scheduleText = "- Senin: 13:00 - 14:00 WIB\n- Jumat: 19:00 - 20:00 WIB\n- Sabtu: 10:00 - 11:00 WIB";
+                if (currentDay === 1 && currentTotalMinutes >= 780 && currentTotalMinutes <= 840) isAllowed = true;
+                if (currentDay === 5 && currentTotalMinutes >= 1140 && currentTotalMinutes <= 1200) isAllowed = true;
+                if (currentDay === 6 && currentTotalMinutes >= 600 && currentTotalMinutes <= 660) isAllowed = true;
+            }
+
+            if (!isAllowed) {
+                alert(`⛔ AKSES DITOLAK: Saat ini di luar jadwal kuis.\n\nKuis untuk kelas Anda hanya dibuka pada:\n${scheduleText}`);
+                return;
+            }
+        }
+
         localStorage.setItem('currentQuizSession', JSON.stringify(quizData));
         document.getElementById('stepPin').classList.add('hidden');
         document.getElementById('stepIdentity').classList.remove('hidden');
         document.getElementById('activeQuizName').innerText = quizData.title;
-    });
+    }).catch(err => alert("Gagal mengecek PIN: " + err.message));
 }
 
 function startQuizSession() {
     const name = document.getElementById('studentName').value;
     const niu = document.getElementById('studentNiu').value;
 
-    if(!name || !niu) { alert("Nama dan NIU wajib diisi!"); return; }
+    if(!name || !niu) { alert("Nama dan NIM wajib diisi!"); return; }
+
+    const btn = document.querySelector('button[onclick="startQuizSession()"]');
+    if (btn) btn.innerText = "Memproses...";
 
     const quizSession = JSON.parse(localStorage.getItem('currentQuizSession'));
+    
+    if (!quizSession || !quizSession.id) {
+        alert("Sesi kuis tidak valid. Silakan muat ulang halaman.");
+        if (btn) btn.innerText = "Mulai Kerjakan Quiz";
+        return;
+    }
+
     const quizRef = db.collection("quizzes").doc(quizSession.id);
 
     quizRef.get().then((doc) => {
+        if (!doc.exists) {
+            alert("Kuis tidak ditemukan di server.");
+            if (btn) btn.innerText = "Mulai Kerjakan Quiz";
+            return;
+        }
+
         const data = doc.data();
-        const alreadySubmitted = data.submissions.some(s => s.niu === niu);
+        
+        // PENGAMAN KUIS LAMA (Mencegah Layar Macet)
+        const submissionsArray = data.submissions || []; 
+        
+        const alreadySubmitted = submissionsArray.some(s => s.niu === niu);
 
         if(alreadySubmitted) {
-            alert("Maaf, NIU ini sudah pernah digunakan untuk submit kuis ini (Satu NIU hanya 1 kali submit).");
+            alert("Maaf, NIM ini sudah pernah digunakan untuk submit kuis ini (Satu NIM hanya 1 kali pengerjaan).");
+            if (btn) btn.innerText = "Mulai Kerjakan Quiz";
             return;
         }
 
         const newSubmission = { name: name, niu: niu, time: new Date().toISOString() };
+        
         quizRef.update({
             submissions: firebase.firestore.FieldValue.arrayUnion(newSubmission)
         }).then(() => {
             localStorage.setItem('activeStudent', JSON.stringify({ name, niu }));
             window.location.href = "quiz.html";
+        }).catch((error) => {
+            alert("Gagal menyimpan sesi: " + error.message);
+            if (btn) btn.innerText = "Mulai Kerjakan Quiz";
         });
+
+    }).catch((error) => {
+        alert("Gagal menghubungi server database: " + error.message);
+        if (btn) btn.innerText = "Mulai Kerjakan Quiz";
     });
 }
 
@@ -218,12 +274,9 @@ function startQuizSession() {
 // 5. HALAMAN KUIS & TIMER (FINAL)
 // ==========================================
 let timerInterval;
-let isUnloading = false; // Penanda untuk membedakan refresh dan pindah tab
+let isUnloading = false; 
 
-// Event ini akan aktif tepat sebelum halaman di-refresh atau ditutup
-window.addEventListener('beforeunload', () => {
-    isUnloading = true; 
-});
+window.addEventListener('beforeunload', () => { isUnloading = true; });
 
 function initQuizPage() {
     const quiz = JSON.parse(localStorage.getItem('currentQuizSession'));
@@ -254,9 +307,7 @@ function initQuizPage() {
         startCountdown(endTime);
     }
 
-    // --- FITUR ANTI-CHEAT YANG DIPERBAIKI ---
     document.addEventListener("visibilitychange", () => {
-        // Jika tab disembunyikan DAN bukan karena proses refresh halaman
         if (document.visibilityState === 'hidden' && !isUnloading) {
             alert("⛔ PELANGGARAN: Anda terdeteksi keluar dari halaman kuis. Ujian otomatis dihentikan!");
             endQuizSession();
@@ -279,16 +330,13 @@ function startCountdown(endTime) {
         let minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
         let seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-        // FITUR PERINGATAN 1 MENIT TERAKHIR
         if (minutes === 0 && seconds <= 59) {
             display.classList.add('text-red-600', 'animate-pulse');
-            // Tambahkan tulisan peringatan di sebelah waktu
             document.getElementById('quizTitleHeader').innerHTML = `<span class="text-red-400 animate-pulse">⚠️ SEGERA SUBMIT SEBELUM WAKTU HABIS!</span>`;
         }
 
         minutes = minutes < 10 ? "0" + minutes : minutes;
         seconds = seconds < 10 ? "0" + seconds : seconds;
-
         display.innerText = `${minutes}:${seconds}`;
     }, 1000);
 }
@@ -298,28 +346,16 @@ function endQuizSession() {
     document.getElementById('formContainer').classList.add('hidden');
     document.getElementById('timeoutMessage').classList.remove('hidden');
     
-    // Jangan hapus activeStudent jika ingin merekam log pelanggaran di masa depan, 
-    // tapi untuk sekarang kita bersihkan agar form benar-benar terkunci.
     localStorage.removeItem('currentQuizSession');
     localStorage.removeItem('activeStudent');
     localStorage.removeItem('quizEndTime'); 
 }
 
-// ==========================================
-// KONFIRMASI SUBMIT MANUAL
-// ==========================================
-
 function handleEarlySubmit() {
-    // 1. Hentikan timer
     if(timerInterval) clearInterval(timerInterval);
-    
-    // 2. Matikan fitur anti-cheat agar aman saat keluar
     isUnloading = true; 
-    
-    // 3. Sembunyikan form dan tombol konfirmasi
     document.getElementById('formContainer').classList.add('hidden');
     
-    // 4. Tampilkan pesan berhasil
     const timeoutMsg = document.getElementById('timeoutMessage');
     timeoutMsg.classList.remove('hidden');
     timeoutMsg.innerHTML = `
@@ -328,16 +364,15 @@ function handleEarlySubmit() {
         <a href="index.html" class="bg-slate-900 text-white px-6 py-3 rounded-full font-medium">Kembali ke Beranda</a>
     `;
     
-    // 5. Kunci kuis agar tidak bisa diulang
     localStorage.removeItem('currentQuizSession');
     localStorage.removeItem('activeStudent');
     localStorage.removeItem('quizEndTime');
 }
 
 // ==========================================
-// 6. FITUR REKAP NILAI (DIPERBARUI DENGAN EDIT)
+// 6. FITUR REKAP NILAI
 // ==========================================
-let editingGradeId = null; // Penanda jika sedang mengedit data
+let editingGradeId = null;
 
 function addComponentRow() {
     const container = document.getElementById('componentsContainer');
@@ -386,7 +421,6 @@ function saveGrade() {
     const dosenEmail = localStorage.getItem('loggedUser');
 
     if (editingGradeId) {
-        // --- MODE UPDATE / EDIT DATA ---
         db.collection("grades").doc(editingGradeId).update({
             practicumTitle: practicumTitle.toLowerCase(),
             studentName: studentName.toLowerCase(),
@@ -398,7 +432,6 @@ function saveGrade() {
             resetGradeForm();
         }).catch(err => alert("Gagal memperbarui: " + err.message));
     } else {
-        // --- MODE TAMBAH DATA BARU ---
         db.collection("grades").add({
             dosen: dosenEmail,
             practicumTitle: practicumTitle.toLowerCase(),
@@ -421,7 +454,6 @@ function loadGrades() {
     const dosenEmail = localStorage.getItem('loggedUser');
     if(!dosenEmail) return;
 
-    // Kueri aman tanpa orderBy server untuk mencegah error indeks
     db.collection("grades").where("dosen", "==", dosenEmail)
     .onSnapshot((snapshot) => {
         tbody.innerHTML = '';
@@ -431,11 +463,7 @@ function loadGrades() {
         }
 
         let grades = [];
-        snapshot.forEach((doc) => {
-            grades.push({ id: doc.id, ...doc.data() });
-        });
-
-        // Urutkan data secara lokal di browser (terbaru di atas)
+        snapshot.forEach((doc) => { grades.push({ id: doc.id, ...doc.data() }); });
         grades.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
         grades.forEach((data) => {
@@ -451,7 +479,6 @@ function loadGrades() {
             </tr>`;
         });
     }, (error) => {
-        console.error(error);
         tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-red-500">Gagal memuat: ${error.message}</td></tr>`;
     });
 }
@@ -464,7 +491,6 @@ function editGrade(id) {
             document.getElementById('studentNameGrade').value = data.studentName;
             document.getElementById('studentNiuGrade').value = data.studentNiu;
 
-            // Masukkan kembali komponen penilaian ke form
             const container = document.getElementById('componentsContainer');
             container.innerHTML = '';
             data.components.forEach(c => {
@@ -480,13 +506,10 @@ function editGrade(id) {
             });
 
             editingGradeId = id;
-            
-            // Ubah tombol simpan menjadi tombol update berwarna kuning
             const saveBtn = document.querySelector('button[onclick="saveGrade()"]');
             saveBtn.innerText = "Perbarui Nilai";
             saveBtn.className = "bg-yellow-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-yellow-700";
-            
-            window.scrollTo({ top: 0, behavior: 'smooth' }); // Otomatis scroll ke atas melihat form
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     });
 }
@@ -513,6 +536,7 @@ function deleteGrade(docId) {
         db.collection("grades").doc(docId).delete();
     }
 }
+
 // ==========================================
 // PENCARIAN NILAI MAHASISWA
 // ==========================================
@@ -529,10 +553,7 @@ function searchGrade() {
     const btn = document.querySelector('button[onclick="searchGrade()"]');
     btn.innerText = "Mencari...";
 
-    // Menggunakan 1 filter utama (NIM) agar aman dari error index Firebase
-    db.collection("grades")
-      .where("studentNiu", "==", niu)
-      .get()
+    db.collection("grades").where("studentNiu", "==", niu).get()
       .then((querySnapshot) => {
           btn.innerText = "Cari Nilai Saya";
           
@@ -543,8 +564,6 @@ function searchGrade() {
           }
 
           let foundData = null;
-          
-          // Cocokkan Judul dan Nama secara presisi dari data NIM yang ditemukan
           querySnapshot.forEach((doc) => {
               const data = doc.data();
               if (data.practicumTitle === title && data.studentName === name) {
@@ -553,18 +572,16 @@ function searchGrade() {
           });
 
           if (!foundData) {
-              alert("Data ditemukan untuk NIM tersebut, tetapi Judul Praktikum atau Nama Lengkap tidak cocok. Pastikan ejaan dan spasi sama persis dengan yang diinput pengajar.");
+              alert("Data ditemukan untuk NIM tersebut, tetapi Judul Praktikum atau Nama Lengkap tidak cocok.");
               document.getElementById('resultContainer').classList.add('hidden');
               return;
           }
 
-          // Tampilkan Hasil Nilai ke Layar
           document.getElementById('resultContainer').classList.remove('hidden');
           document.getElementById('resTitle').innerText = foundData.practicumTitle.toUpperCase();
           document.getElementById('resStudent').innerText = `${foundData.studentName.toUpperCase()} (${foundData.studentNiu.toUpperCase()})`;
           document.getElementById('resFinalScore').innerText = foundData.finalScore;
 
-          // Tampilkan Rincian Komponen Nilai
           const compList = document.getElementById('resComponents');
           compList.innerHTML = '';
           foundData.components.forEach(c => {
@@ -577,7 +594,6 @@ function searchGrade() {
       })
       .catch((error) => {
           btn.innerText = "Cari Nilai Saya";
-          console.error("Firebase Search Error:", error);
           alert("Gagal menghubungi server: " + error.message);
       });
 }
